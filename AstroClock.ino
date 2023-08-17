@@ -5,7 +5,8 @@
 
 #define MAX_MINUTE_BRIGHT 60
 
-Led led(9, 10, 6); Clock c1;
+Led led(9, 10, 6);
+Clock c1;
 GyverTM1637 display(2, 3);
 EncButton<EB_TICK, 4, 5, 7> encoder;
 timeValue curTime, reservedTime;
@@ -71,7 +72,8 @@ void loop() {
 timeValue correctTime(timeValue t) {
     if (t.minutes < 0) t.minutes = 59;
     if (t.hours < 0) t.hours = 23;
-    t.hours %= 24; t.minutes %= 60;
+    t.hours %= 24;
+    t.minutes %= 60;
     return t;
 }
 

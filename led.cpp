@@ -1,7 +1,9 @@
 #include "led.hpp"
 
 Led::Led(byte pinRED, byte pinGREEN, byte pinBLUE) {
-    pinR = pinRED; pinG = pinGREEN; pinB = pinBLUE;
+    pinR = pinRED;
+    pinG = pinGREEN;
+    pinB = pinBLUE;
     timeRGB = millis();
     pinMode(pinR, OUTPUT);
     pinMode(pinG, OUTPUT);
@@ -25,7 +27,9 @@ void Led::setColor(int R, int G, int B) {
     G = constrain(G, 0, 255);
     B = constrain(B, 0, 255);
 
-    curR = R; curG = G; curB = B;
+    curR = R;
+    curG = G;
+    curB = B;
 }
 
 void Led::setBrightness(int percent) {
@@ -45,25 +49,30 @@ bool Led::RGB(int delay) {
     if (millis() - timeRGB < delay) return false;
     else timeRGB = millis();
 
-    curRGB[0] = curR; curRGB[1] = curG; curRGB[2] = curB;
+    curRGB[0] = curR;
+    curRGB[1] = curG;
+    curRGB[2] = curB;
 
     if (num < 0) num += 3;
 
     if (stateRGB) {
         if (curRGB[num] == 255) {
-            num -= 1; num %= 3; stateRGB = !stateRGB;
+            num -= 1;
+            num %= 3;
+            stateRGB = !stateRGB;
             return true;
-        }
-        else curRGB[num] += 1;
-    }
-    else {
+        } else curRGB[num] += 1;
+    } else {
         if (curRGB[num] == 0) {
-            num += 2; num %= 3; stateRGB = !stateRGB;
+            num += 2;
+            num %= 3;
+            stateRGB = !stateRGB;
             return true;
-        }
-        else curRGB[num] -= 1;
+        } else curRGB[num] -= 1;
     }
 
-    curR = curRGB[0]; curG = curRGB[1]; curB = curRGB[2];
+    curR = curRGB[0];
+    curG = curRGB[1];
+    curB = curRGB[2];
     return false;
 }
