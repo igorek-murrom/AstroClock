@@ -1,79 +1,102 @@
 #include "led.hpp"
 #include "clock.hpp"
-#include <EncButton.h>
+// #include <EncButton.h>
 #include <GyverTM1637.h>
+#include <GyverEncoder.h>
 
 #define MAX_MINUTE_BRIGHT 60
+#define PIN_LED 5
 
-Led led(9, 10, 6);
 Clock c1;
+Led led(9, 10, 6);
 GyverTM1637 display(2, 3);
-EncButton<EB_TICK, 4, 5, 7> encoder;
-timeValue curTime, reservedTime;
+Encoder encoder(7, 8, 4, TYPE2);
+// EncButton<EB_TICK, 7, 8, 5> encoder;
+timeValue curTime, reservedTime, setTime;
 byte* values;
-bool mode = false, setFlag = false, firstChange = true;
-int difference, bright = 0, step;
+bool mode = false, installFlag = false, firstChange = true, setMode = false, toInstall = false;
+int difference;
+uint8_t bright = 0;
 
 void setup() {
     Serial.begin(115200);
 
     led.setColor(255, 190, 0);
     led.on();
-
+    encoder.setDirection(REVERSE);
     display.brightness(5);
 }
 
 void loop() {
     curTime = c1.getTime();
 
-    if (encoder.tick()) {
-        if (encoder.click()) {
-            setFlag = false;
-            if (mode) setFlag = true;
-            if (firstChange) reservedTime = curTime;
-            bright = 0;
-            mode = !mode;
-        }
-        if (mode) {
-            step = 0;
-            if (encoder.turn()) {
-                if (encoder.left()) step--;
-                if (encoder.right()) step++;
-                if (encoder.fast()) step *= 5;
-                reservedTime.minutes += step;
-            }
-            if (encoder.turnH()) {
-                if (encoder.leftH()) step--;
-                if (encoder.rightH()) step++;
-                if (encoder.fast()) step *= 3;
-                reservedTime.hours += step;
-            }
-        }
-        encoder.resetState();
+    encoder.tick();
+    if (mode and encoder.isTurn() and !firstChange) {
+        if (encoder.isRight()) reservedTime.minutes++;
+        if (encoder.isLeft()) reservedTime.minutes--;
+        if (encoder.isRightH()) reservedTime.hours++;
+        if (encoder.isLeftH()) reservedTime.hours--;
+        if (encoder.isFastR()) reservedTime.minutes += 5;
+        if (encoder.isFastL()) reservedTime.minutes -= 5;
+    } else if (setMode and encoder.isTurn()) {
+        if (encoder.isRight()) setTime.minutes++;
+        if (encoder.isLeft()) setTime.minutes--;
+        if (encoder.isRightH()) setTime.hours++;
+        if (encoder.isLeftH()) setTime.hours--;
+        if (encoder.isFastR()) setTime.minutes += 5;
+        if (encoder.isFastL()) setTime.minutes -= 5;
+    }
+    if (encoder.isDouble() and !mode) {
+        if (setMode) toInstall = true;
+        setMode = !setMode;
+    } else if (encoder.isSingle() and !setMode) {
+        installFlag = false;
+        if (mode) installFlag = true;
+        bright = 0;
+        firstChange = false;
+        mode = !mode;
+    }
+    encoder.resetStates();
+
+    if (firstChange) {
+        reservedTime = curTime;
+        setTime = curTime;
+    } else {
+        reservedTime = correctTime(reservedTime);
     }
 
-    if (mode) curTime = reservedTime;
+    if (mode) {
+        curTime = reservedTime;
+        toInstall = false;
+    } else if (setMode) {
+        curTime = setTime;
+    }
 
-    curTime = correctTime(curTime);
+    if (toInstall) {
+        c1.setTime(setTime);
+        toInstall = false;
+    }
+
     values = time2byte(curTime);
 
-    display.scroll(values, 100);
-    display.point(mode);
-
-    if (setFlag) {
+    // display.scroll(values, 100);
+    // display.point(mode);
+    blinkLed(setMode);
+    
+    if (installFlag and !setMode and !toInstall) {
         difference = differenceMinute(reservedTime, curTime);
         if (difference < MAX_MINUTE_BRIGHT) bright = map(difference, 0, MAX_MINUTE_BRIGHT, 100, 0);
     }
 
     led.setBrightness(bright);
     led.update();
+
+    debug();
 }
 
 timeValue correctTime(timeValue t) {
-    if (t.minutes < 0) t.minutes = 59;
-    if (t.hours < 0) t.hours = 23;
-    t.hours %= 24;
-    t.minutes %= 60;
+    t.hours = (t.hours % 24 + 24) % 24;
+    t.minutes = (t.minutes % 60 + 60) % 60;
     return t;
 }
 
@@ -93,4 +116,53 @@ int differenceMinute(timeValue reserved, timeValue cur) {
     diff = resMin - curMin;
     if (resMin < curMin) diff += 1440;
     return diff;
+}
+
+void debug() {
+    Serial.print("mode flag->");
+    Serial.print(mode);
+    Serial.print("   ");
+
+    Serial.print("setMode flag->");
+    Serial.print(setMode);
+    Serial.print("   ");
+
+    // Serial.print("installFlag flag->");
+    // Serial.print(installFlag);
+    // Serial.print("   ");
+
+    // Serial.print("toInstall flag->");
+    // Serial.print(toInstall);
+    // Serial.print("   ");
+
+    // Serial.print("firstChange flag->");
+    // Serial.print(firstChange);
+    // Serial.print("   ");
+
+    Serial.print("current time->");
+    Serial.print(curTime.hours);
+    Serial.print(":");
+    Serial.print(curTime.minutes);
+    Serial.print("   ");
+
+    Serial.print("reserved time->");
+    Serial.print(reservedTime.hours);
+    Serial.print(":");
+    Serial.print(reservedTime.minutes);
+    Serial.print("   ");
+
+    Serial.print("difference->");
+    Serial.print(difference);
+    Serial.print("   ");
+
+    Serial.print("bright->");
+    Serial.print(bright);
+    Serial.println();
+}
+
+void blinkLed(bool mode) {
+    int value;
+    if (mode) value = 255;
+    else value = 0;
+    analogWrite(PIN_LED, value);
 }

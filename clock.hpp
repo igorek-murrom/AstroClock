@@ -5,9 +5,9 @@
 #include <TM1637Display.h>
 
 struct timeValue {
-    int hours;
-    int minutes;
-    int seconds;
+    int8_t hours;
+    int8_t minutes;
+    int8_t seconds;
 };
 
 class Clock {

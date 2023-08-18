@@ -1,7 +1,7 @@
 {
-    "sketch": "AstroClock.ino",
+    "port": "/dev/ttyUSB0",
     "configuration": "cpu=atmega328old",
     "board": "arduino:avr:nano",
-    "port": "/dev/ttyUSB0",
-    "programmer": "avrispmkii"
+    "programmer": "avrispmkii",
+    "sketch": "AstroClock.ino"
 }

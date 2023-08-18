@@ -4,7 +4,7 @@ Led::Led(byte pinRED, byte pinGREEN, byte pinBLUE) {
     pinR = pinRED;
     pinG = pinGREEN;
     pinB = pinBLUE;
-    timeRGB = millis();
+    // timeRGB = millis();
     pinMode(pinR, OUTPUT);
     pinMode(pinG, OUTPUT);
     pinMode(pinB, OUTPUT);
