@@ -1,35 +1,45 @@
 #include "led.hpp"
 #include "clock.hpp"
-// #include <EncButton.h>
 #include <GyverTM1637.h>
 #include <GyverEncoder.h>
 
 #define MAX_MINUTE_BRIGHT 60
 #define PIN_LED 5
+#define DELAY_SET_BLINK 50
 
 Clock c1;
 Led led(9, 10, 6);
 GyverTM1637 display(2, 3);
 Encoder encoder(7, 8, 4, TYPE2);
-// EncButton<EB_TICK, 7, 8, 5> encoder;
 timeValue curTime, reservedTime, setTime;
 byte* values;
-bool mode = false, installFlag = false, firstChange = true, setMode = false, toInstall = false;
+bool mode = false, installFlag = false, firstChange = true, setMode = false, toInstall = false, pointFlag = false;
 int difference;
 uint8_t bright = 0;
+unsigned long timerSet;
 
 void setup() {
     Serial.begin(115200);
 
     led.setColor(255, 190, 0);
     led.on();
+
     encoder.setDirection(REVERSE);
+
     display.brightness(5);
+
+    values[0] = 0;
+    values[1] = 0;
+    values[2] = 0;
+    values[3] = 0;
 }
 
 void loop() {
+    // сбрасываем таймер и считываем время
+    timerSet = millis();
     curTime = c1.getTime();
 
+    // обрабатываем энкодер
     encoder.tick();
     if (mode and encoder.isTurn() and !firstChange) {
         if (encoder.isRight()) reservedTime.minutes++;
@@ -58,6 +68,7 @@ void loop() {
     }
     encoder.resetStates();
 
+    // инициализируем время резерва и установки или корректируем зарезервированное время
     if (firstChange) {
         reservedTime = curTime;
         setTime = curTime;
@@ -65,6 +76,7 @@ void loop() {
         reservedTime = correctTime(reservedTime);
     }
 
+    // заменяем время показа на зарезервированное или установачное
     if (mode) {
         curTime = reservedTime;
         toInstall = false;
@@ -72,26 +84,40 @@ void loop() {
         curTime = setTime;
     }
 
+    // если установка времени завершилась то обновляем время
     if (toInstall) {
         c1.setTime(setTime);
         toInstall = false;
     }
 
+    // раскладываем время на байты
     values = time2byte(curTime);
 
-    // display.scroll(values, 100);
-    // display.point(mode);
-    blinkLed(setMode);
-    
+    // обработка точки в зависимости от флагов
+    if (mode) pointFlag = true;
+    else if (setMode) {
+        if (millis() - timerSet > DELAY_SET_BLINK) {
+            pointFlag = !pointFlag;
+            timerSet = millis();
+        }
+    }
+    else pointFlag = false;
+
+    // выводим на дисплей время
+    display.point(pointFlag, false);
+    display.display(values);
+
+    // расчитываем время и яркость до будильника
     if (installFlag and !setMode and !toInstall) {
         difference = differenceMinute(reservedTime, curTime);
         if (difference < MAX_MINUTE_BRIGHT) bright = map(difference, 0, MAX_MINUTE_BRIGHT, 100, 0);
     }
 
+    // обновляем ленту RGB
     led.setBrightness(bright);
     led.update();
 
-    debug();
+    Serial.println(timerSet);
 }
 
 timeValue correctTime(timeValue t) {
@@ -127,17 +153,17 @@ void debug() {
     Serial.print(setMode);
     Serial.print("   ");
 
-    // Serial.print("installFlag flag->");
-    // Serial.print(installFlag);
-    // Serial.print("   ");
+    Serial.print("installFlag flag->");
+    Serial.print(installFlag);
+    Serial.print("   ");
 
-    // Serial.print("toInstall flag->");
-    // Serial.print(toInstall);
-    // Serial.print("   ");
+    Serial.print("toInstall flag->");
+    Serial.print(toInstall);
+    Serial.print("   ");
 
-    // Serial.print("firstChange flag->");
-    // Serial.print(firstChange);
-    // Serial.print("   ");
+    Serial.print("firstChange flag->");
+    Serial.print(firstChange);
+    Serial.print("   ");
 
     Serial.print("current time->");
     Serial.print(curTime.hours);
@@ -158,11 +184,4 @@ void debug() {
     Serial.print("bright->");
     Serial.print(bright);
     Serial.println();
-}
-
-void blinkLed(bool mode) {
-    int value;
-    if (mode) value = 255;
-    else value = 0;
-    analogWrite(PIN_LED, value);
 }
