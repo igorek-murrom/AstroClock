@@ -2,10 +2,11 @@
 #include "clock.hpp"
 #include <GyverTM1637.h>
 #include <GyverEncoder.h>
+#include "TimerOne.h"
 
 #define MAX_MINUTE_BRIGHT 60
 #define PIN_LED 5
-#define DELAY_SET_BLINK 50
+#define DELAY_SET_BLINK 350
 
 Clock c1;
 Led led(9, 10, 6);
@@ -16,10 +17,12 @@ byte* values;
 bool mode = false, installFlag = false, firstChange = true, setMode = false, toInstall = false, pointFlag = false;
 int difference;
 uint8_t bright = 0;
-unsigned long timerSet;
+uint32_t timerSet;
 
 void setup() {
-    Serial.begin(115200);
+    // Serial.begin(115200);
+
+    timerSet = millis();
 
     led.setColor(255, 190, 0);
     led.on();
@@ -28,19 +31,19 @@ void setup() {
 
     display.brightness(5);
 
-    values[0] = 0;
-    values[1] = 0;
-    values[2] = 0;
-    values[3] = 0;
+    Timer1.initialize(1000);
+    Timer1.attachInterrupt(tickIsr);
+}
+
+void tickIsr() {
+    encoder.tick();
 }
 
 void loop() {
-    // сбрасываем таймер и считываем время
-    timerSet = millis();
+    // считываем время
     curTime = c1.getTime();
 
     // обрабатываем энкодер
-    encoder.tick();
     if (mode and encoder.isTurn() and !firstChange) {
         if (encoder.isRight()) reservedTime.minutes++;
         if (encoder.isLeft()) reservedTime.minutes--;
@@ -48,7 +51,7 @@ void loop() {
         if (encoder.isLeftH()) reservedTime.hours--;
         if (encoder.isFastR()) reservedTime.minutes += 5;
         if (encoder.isFastL()) reservedTime.minutes -= 5;
-    } else if (setMode and encoder.isTurn()) {
+    } else if (setMode and encoder.isTurn() and !firstChange) {
         if (encoder.isRight()) setTime.minutes++;
         if (encoder.isLeft()) setTime.minutes--;
         if (encoder.isRightH()) setTime.hours++;
@@ -116,8 +119,6 @@ void loop() {
     // обновляем ленту RGB
     led.setBrightness(bright);
     led.update();
-
-    Serial.println(timerSet);
 }
 
 timeValue correctTime(timeValue t) {

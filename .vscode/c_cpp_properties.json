@@ -23,6 +23,7 @@
                 "/home/igor/Arduino/libraries/TM1637-1.2.0",
                 "/home/igor/Arduino/libraries/GyverTM1637/src",
                 "/home/igor/Arduino/libraries/GyverEncoder/src",
+                "/home/igor/Arduino/libraries/TimerOne-1.1.1",
                 "/home/igor/.arduino15/packages/arduino/tools/avr-gcc/7.3.0-atmel3.6.1-arduino7/lib/gcc/avr/7.3.0/include",
                 "/home/igor/.arduino15/packages/arduino/tools/avr-gcc/7.3.0-atmel3.6.1-arduino7/lib/gcc/avr/7.3.0/include-fixed",
                 "/home/igor/.arduino15/packages/arduino/tools/avr-gcc/7.3.0-atmel3.6.1-arduino7/avr/include"
