@@ -2,27 +2,26 @@
 #include "clock.hpp"
 #include <GyverTM1637.h>
 #include <GyverEncoder.h>
-#include "TimerOne.h"
 
 #define MAX_MINUTE_BRIGHT 60
-#define PIN_LED 5
 #define DELAY_SET_BLINK 350
 
 Clock c1;
 Led led(9, 10, 6);
 GyverTM1637 display(2, 3);
 Encoder encoder(7, 8, 4, TYPE2);
-timeValue curTime, reservedTime, setTime;
+timeValue curTime, alarmTime, instTime;
 byte* values;
-bool mode = false, installFlag = false, firstChange = true, setMode = false, toInstall = false, pointFlag = false;
+bool setAlarm = false, workAlarm = false, setCurTime = false, pointFlag = false;
 int difference;
-uint8_t bright = 0;
-uint32_t timerSet;
+int bright = 0;
+uint32_t timerSet, timerDisp;
 
 void setup() {
-    // Serial.begin(115200);
+    Serial.begin(115200);
 
     timerSet = millis();
+    timerDisp = millis();
 
     led.setColor(255, 190, 0);
     led.on();
@@ -31,89 +30,78 @@ void setup() {
 
     display.brightness(5);
 
-    Timer1.initialize(1000);
-    Timer1.attachInterrupt(tickIsr);
-}
-
-void tickIsr() {
-    encoder.tick();
+    curTime = c1.getTime();
+    alarmTime = curTime;
+    instTime = curTime;
 }
 
 void loop() {
-    // считываем время
-    curTime = c1.getTime();
+        encoder.tick();
 
     // обрабатываем энкодер
-    if (mode and encoder.isTurn() and !firstChange) {
-        if (encoder.isRight()) reservedTime.minutes++;
-        if (encoder.isLeft()) reservedTime.minutes--;
-        if (encoder.isRightH()) reservedTime.hours++;
-        if (encoder.isLeftH()) reservedTime.hours--;
-        if (encoder.isFastR()) reservedTime.minutes += 5;
-        if (encoder.isFastL()) reservedTime.minutes -= 5;
-    } else if (setMode and encoder.isTurn() and !firstChange) {
-        if (encoder.isRight()) setTime.minutes++;
-        if (encoder.isLeft()) setTime.minutes--;
-        if (encoder.isRightH()) setTime.hours++;
-        if (encoder.isLeftH()) setTime.hours--;
-        if (encoder.isFastR()) setTime.minutes += 5;
-        if (encoder.isFastL()) setTime.minutes -= 5;
-    }
-    if (encoder.isDouble() and !mode) {
-        if (setMode) toInstall = true;
-        setMode = !setMode;
-    } else if (encoder.isSingle() and !setMode) {
-        installFlag = false;
-        if (mode) installFlag = true;
+    if (encoder.isTurn()) {
+        if (setAlarm) {
+            if (encoder.isRight()) alarmTime.minutes++;
+            if (encoder.isLeft()) alarmTime.minutes--;
+            if (encoder.isRightH()) alarmTime.hours++;
+            if (encoder.isLeftH()) alarmTime.hours--;
+            if (encoder.isFastR()) alarmTime.minutes += 5;
+            if (encoder.isFastL()) alarmTime.minutes -= 5;
+        }
+        else if (setCurTime) {
+            if (encoder.isRight()) instTime.minutes++;
+            if (encoder.isLeft()) instTime.minutes--;
+            if (encoder.isRightH()) instTime.hours++;
+            if (encoder.isLeftH()) instTime.hours--;
+            if (encoder.isFastR()) instTime.minutes += 5;
+            if (encoder.isFastL()) instTime.minutes -= 5;
+        }
+    } else if (encoder.isDouble() and !setAlarm) {
+        if (setCurTime) c1.setTime(instTime);
+        setCurTime = !setCurTime;
+    } else if (encoder.isSingle() and !setCurTime) {
+        if (setAlarm) workAlarm = true;
+        else workAlarm = false;
         bright = 0;
-        firstChange = false;
-        mode = !mode;
+        setAlarm = !setAlarm;
     }
     encoder.resetStates();
 
     // инициализируем время резерва и установки или корректируем зарезервированное время
-    if (firstChange) {
-        reservedTime = curTime;
-        setTime = curTime;
-    } else {
-        reservedTime = correctTime(reservedTime);
-    }
+    alarmTime = correctTime(alarmTime);
+    instTime = correctTime(instTime);
 
     // заменяем время показа на зарезервированное или установачное
-    if (mode) {
-        curTime = reservedTime;
-        toInstall = false;
-    } else if (setMode) {
-        curTime = setTime;
-    }
-
-    // если установка времени завершилась то обновляем время
-    if (toInstall) {
-        c1.setTime(setTime);
-        toInstall = false;
-    }
-
-    // раскладываем время на байты
-    values = time2byte(curTime);
+    if (setAlarm) curTime = alarmTime;
+    else if (setCurTime) curTime = instTime;
+    else curTime = c1.getTime();
 
     // обработка точки в зависимости от флагов
-    if (mode) pointFlag = true;
-    else if (setMode) {
+    if (setAlarm) pointFlag = true;
+    else if (setCurTime) {
         if (millis() - timerSet > DELAY_SET_BLINK) {
             pointFlag = !pointFlag;
             timerSet = millis();
         }
-    }
-    else pointFlag = false;
+    } else pointFlag = false;
+
+    // раскладываем время на байты
+    values = time2byte(curTime);
 
     // выводим на дисплей время
-    display.point(pointFlag, false);
-    display.display(values);
+
+    if (millis() - timerDisp > 4) {
+        display.point(pointFlag, false);
+        display.display(values);
+        timerDisp = millis();
+    }
 
     // расчитываем время и яркость до будильника
-    if (installFlag and !setMode and !toInstall) {
-        difference = differenceMinute(reservedTime, curTime);
+    if (workAlarm and !setCurTime and !setAlarm) {
+        difference = differenceMinute(alarmTime, curTime);
         if (difference < MAX_MINUTE_BRIGHT) bright = map(difference, 0, MAX_MINUTE_BRIGHT, 100, 0);
+        else workAlarm = false;
+        Serial.println(bright);
     }
 
     // обновляем ленту RGB
@@ -143,46 +131,4 @@ int differenceMinute(timeValue reserved, timeValue cur) {
     diff = resMin - curMin;
     if (resMin < curMin) diff += 1440;
     return diff;
-}
-
-void debug() {
-    Serial.print("mode flag->");
-    Serial.print(mode);
-    Serial.print("   ");
-
-    Serial.print("setMode flag->");
-    Serial.print(setMode);
-    Serial.print("   ");
-
-    Serial.print("installFlag flag->");
-    Serial.print(installFlag);
-    Serial.print("   ");
-
-    Serial.print("toInstall flag->");
-    Serial.print(toInstall);
-    Serial.print("   ");
-
-    Serial.print("firstChange flag->");
-    Serial.print(firstChange);
-    Serial.print("   ");
-
-    Serial.print("current time->");
-    Serial.print(curTime.hours);
-    Serial.print(":");
-    Serial.print(curTime.minutes);
-    Serial.print("   ");
-
-    Serial.print("reserved time->");
-    Serial.print(reservedTime.hours);
-    Serial.print(":");
-    Serial.print(reservedTime.minutes);
-    Serial.print("   ");
-
-    Serial.print("difference->");
-    Serial.print(difference);
-    Serial.print("   ");
-
-    Serial.print("bright->");
-    Serial.print(bright);
-    Serial.println();
 }
